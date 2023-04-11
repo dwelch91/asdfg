@@ -2,15 +2,15 @@ import os
 import re
 import sys
 from pathlib import Path
-from subprocess import check_output, CalledProcessError, STDOUT, run
+from subprocess import run
 
 from PySide6.QtCore import QCoreApplication
 from PySide6.QtGui import QFont, Qt, QAction, QCursor
 from PySide6.QtWidgets import (QApplication, QMainWindow, QTreeWidget, QTreeWidgetItem, QMenu, QMessageBox, QToolBar,
-    QDialog, QListWidget, QDialogButtonBox, QVBoxLayout, QListWidgetItem, QSplitter, QStyle, QTextEdit)
+                               QDialog, QListWidget, QDialogButtonBox, QVBoxLayout, QListWidgetItem, QSplitter, QStyle,
+                               QTextEdit)
 
-
-__version__ = "0.0.2"
+__version__ = "0.0.3"
 
 
 class LogWidget(QTextEdit):
@@ -80,14 +80,14 @@ class ASDF:
             if log_output:
                 if stdout_lines:
                     [self.log_widget.info(line) for line in stdout_lines]
-                #else:
+                # else:
                 #    self.log_widget.info("(stdout empty)")
 
             stderr_lines = [p.decode() for p in process.stderr.splitlines()]
             if log_output:
                 if stderr_lines:
                     [self.log_widget.info(line) for line in stderr_lines]
-                #else:
+                # else:
                 #    self.log_widget.info("(stderr empty)")
 
             return stdout_lines
@@ -265,19 +265,14 @@ class AddVersionDialog(QDialog):
         self.setLayout(self.layout)
         all_versions = set(asdf.versions_list_all(plugin))
         all_installed_versions = set(asdf.versions_list_installed(plugin)[0])
-        int_pattern = re.compile(r"""(\d+).*""")
+        pattern = re.compile(r"""([^\-.0-9]+)?[\-.]?(\d+)?\.?(\d+)?\.?(\d+)?[\-.]?(.*)?""")
 
-        def to_int(s: str) -> int:
-            try:
-                return int(s)
-            except ValueError:
-                if (m := int_pattern.match(s)) is not None:
-                    return int(m.group(1))
-            return 0
+        def key_func(x: str):
+            m = pattern.match(x)
+            return [m.group(1) or '', int(m.group(2) or '0'), int(m.group(3) or '0'), int(m.group(4) or '0'),
+                    m.group(5) or '~']
 
-        not_installed_versions = sorted(list(all_versions - all_installed_versions),
-                                        key=lambda x: [to_int(y) for y in x.split('.')])
-
+        not_installed_versions = sorted(list(all_versions - all_installed_versions), key=key_func)
         self.listbox.addItems(not_installed_versions)
         self.listbox.currentItemChanged.connect(self.current_item_changed)
 
@@ -342,6 +337,7 @@ class MainWindow(QMainWindow):
 
         self.setCentralWidget(self.splitter)
 
+        self.current_path = Path(os.curdir).resolve()
         self.refresh_tree()
         self.log.info(f"asdfg {__version__}")
         self.log.info(f"CWD: {Path(os.curdir).resolve().as_posix()}")
@@ -378,17 +374,19 @@ class MainWindow(QMainWindow):
             add_version_action.triggered.connect(lambda: self.add_version(plugin))
             menu.addAction(add_version_action)
 
-            set_local_system_action = QAction(f"Set local {plugin} version to system")
+            set_local_system_action = QAction(f"Set local {plugin} version to system (in {self.current_path})")
             set_local_system_action.triggered.connect(lambda: self.asdf.set_local_system(plugin))
             menu.addAction(set_local_system_action)
-
-            set_global_system_action = QAction(f"Set global {plugin} version to system")
-            set_global_system_action.triggered.connect(lambda: self.asdf.set_global_system(plugin))
-            menu.addAction(set_global_system_action)
 
             remove_local_version_action = QAction(f"Remove local {plugin} version, if set (use global version)")
             remove_local_version_action.triggered.connect(lambda: self.asdf.remove_local_version(plugin))
             menu.addAction(remove_local_version_action)
+
+            menu.addSeparator()
+
+            set_global_system_action = QAction(f"Set global {plugin} version to system")
+            set_global_system_action.triggered.connect(lambda: self.asdf.set_global_system(plugin))
+            menu.addAction(set_global_system_action)
 
             menu.addSeparator()
 
@@ -408,7 +406,7 @@ class MainWindow(QMainWindow):
             set_global_version_action.triggered.connect(lambda: self.asdf.set_global_version(plugin, version))
             menu.addAction(set_global_version_action)
 
-            set_local_version_action = QAction(f"Set local {plugin} version to {version}")
+            set_local_version_action = QAction(f"Set local {plugin} version to {version} (in {self.current_path})")
             set_local_version_action.triggered.connect(lambda: self.asdf.set_local_version(plugin, version))
             menu.addAction(set_local_version_action)
 
