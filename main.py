@@ -5,18 +5,19 @@ from pathlib import Path
 from subprocess import run
 
 from PySide6.QtCore import QCoreApplication
-from PySide6.QtGui import QFont, Qt, QAction, QCursor
+from PySide6.QtGui import QFont, Qt, QAction, QCursor, QFontDatabase
 from PySide6.QtWidgets import (QApplication, QMainWindow, QTreeWidget, QTreeWidgetItem, QMenu, QMessageBox, QToolBar,
                                QDialog, QListWidget, QDialogButtonBox, QVBoxLayout, QListWidgetItem, QSplitter, QStyle,
                                QTextEdit)
 
-__version__ = "0.0.3"
+__version__ = "0.0.4"
 
 
 class LogWidget(QTextEdit):
     def __init__(self):
         super().__init__()
         self.setReadOnly(True)
+        self.setFont(QFontDatabase.systemFont(QFontDatabase.FixedFont))
 
 
     def scroll_to_end(self):
@@ -31,7 +32,7 @@ class LogWidget(QTextEdit):
 
 
     def cmd(self, line: str):
-        self.append(f"<font color=blue>CMD: {line}</font>")
+        self.append(f"<font color=cyan>CMD: {line}</font>")
         self.scroll_to_end()
 
 
@@ -72,10 +73,6 @@ class ASDF:
 
             process = run(cmd, capture_output=True, cwd=self.current_path.as_posix())
 
-            if process.returncode != 0:
-                self.log_widget.error(f"Command {' '.join(cmd)!r} returned error code {process.returncode}.")
-                return []
-
             stdout_lines = [p.decode() for p in process.stdout.splitlines()]
             if log_output:
                 if stdout_lines:
@@ -86,11 +83,18 @@ class ASDF:
             stderr_lines = [p.decode() for p in process.stderr.splitlines()]
             if log_output:
                 if stderr_lines:
-                    [self.log_widget.info(line) for line in stderr_lines]
+                    [self.log_widget.error(line) for line in stderr_lines]
                 # else:
                 #    self.log_widget.info("(stderr empty)")
 
-            return stdout_lines
+            if process.returncode != 0:
+                self.log_widget.error(f"Command {' '.join(cmd)!r} returned error code {process.returncode}.")
+                return []
+
+            if log_output:
+                self.log_widget.ok(f"Command {' '.join(cmd)!r} completed successfully.")
+
+            return stdout_lines + stderr_lines
         finally:
             QApplication.restoreOverrideCursor()
 
@@ -137,8 +141,10 @@ class ASDF:
         return self.asdf(['plugin', 'update', plugin])
 
 
-    def add_version(self, plugin: str, version: str):
-        return self.asdf(['install', plugin, version])
+    def add_version(self, plugin: str, version: str) -> list[str]:
+        self.log_widget.warning(f"Installing {plugin} {version}. This may take a few moments...")
+        output = self.asdf(['install', plugin, version])
+        return output
 
 
     def add_plugin(self, plugin: str) -> list[str]:
@@ -168,7 +174,8 @@ class ASDF:
 
     def current_versions(self) -> dict:
         current = {}
-        for line in self.asdf(['current'], log_output=False):
+        output = self.asdf(['current'], log_output=False)
+        for line in output:
             if (m := self.current_pattern.match(line)) is not None:
                 current[m.group(1)] = (m.group(2), m.group(3))
         return current
@@ -292,7 +299,7 @@ class MainWindow(QMainWindow):
         self.tree.setColumnCount(3)
         self.tree.setColumnWidth(0, 250)
         self.tree.setColumnWidth(1, 250)
-        self.tree.setHeaderLabels(['plugin', 'version', 'path/message'])
+        self.tree.setHeaderLabels(['plugin/installed version(s)', 'current version', '.tool-versions path'])
         self.tree.setContextMenuPolicy(Qt.CustomContextMenu)
         self.tree.customContextMenuRequested.connect(self.show_context_menu)
         self.setWindowTitle(f"asdfg - {self.asdf.current_path}")
@@ -432,10 +439,11 @@ class MainWindow(QMainWindow):
         self.tree.clear()
         current_versions = self.asdf.current_versions()
         bold_font = QFont()
-        bold_font.setPointSize(14)
+        bold_font.setPointSize(12)
         bold_font.setBold(True)
         items = []
-        for plugin, (version, path) in current_versions.items():
+        for plugin in sorted(current_versions.keys()):
+            version, path = current_versions[plugin]
             item = QTreeWidgetItem([plugin, version, path])
             versions, current = self.asdf.versions_list_installed(plugin)
             for ver in versions:
@@ -450,11 +458,9 @@ class MainWindow(QMainWindow):
 
 
 def main() -> int:
-    # print(f"asdfg v{__version__}")
-    # print("Loading...")
     app = QApplication([])
     font = QFont()
-    font.setPointSize(14)
+    font.setPointSize(12)
     app.setFont(font)
     widget = MainWindow()
     widget.resize(1024, 1024)
