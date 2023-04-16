@@ -10,14 +10,16 @@ from PySide6.QtWidgets import (QApplication, QMainWindow, QTreeWidget, QTreeWidg
                                QDialog, QListWidget, QDialogButtonBox, QVBoxLayout, QListWidgetItem, QSplitter, QStyle,
                                QTextEdit)
 
-__version__ = "0.0.4"
+__version__ = "0.0.5"
 
 
 class LogWidget(QTextEdit):
     def __init__(self):
         super().__init__()
         self.setReadOnly(True)
-        self.setFont(QFontDatabase.systemFont(QFontDatabase.FixedFont))
+        font = QFontDatabase.systemFont(QFontDatabase.FixedFont)
+        font.setPointSize(11)
+        self.setFont(font)
 
 
     def scroll_to_end(self):
@@ -59,7 +61,7 @@ class ASDF:
         self.current_pattern = re.compile(r"""(\S+)\s+(\S+)\s+(.*)""")
 
 
-    def asdf(self, params: list[str] | None = None, log_output: bool = True) -> list[str]:
+    def asdf(self, params: list[str] | None = None, log_output: bool = True, log_success: bool = False) -> list[str]:
         QApplication.setOverrideCursor(QCursor(Qt.WaitCursor))
         if not self.asdf_bin_path.exists():
             self.log_widget.error(f"asdf binary not found at {self.asdf_bin_path}.")
@@ -91,7 +93,7 @@ class ASDF:
                 self.log_widget.error(f"Command {' '.join(cmd)!r} returned error code {process.returncode}.")
                 return []
 
-            if log_output:
+            if log_success:
                 self.log_widget.ok(f"Command {' '.join(cmd)!r} completed successfully.")
 
             return stdout_lines + stderr_lines
@@ -143,7 +145,7 @@ class ASDF:
 
     def add_version(self, plugin: str, version: str) -> list[str]:
         self.log_widget.warning(f"Installing {plugin} {version}. This may take a few moments...")
-        output = self.asdf(['install', plugin, version])
+        output = self.asdf(['install', plugin, version], log_success=True)
         return output
 
 
@@ -293,6 +295,8 @@ class MainWindow(QMainWindow):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.log = LogWidget()
+        self.log.info(f"asdfg {__version__}")
+        self.log.info(f"CWD: {Path(os.curdir).resolve().as_posix()}")
         self.asdf = ASDF(self.log)
         self.asdf.info()
         self.tree = QTreeWidget()
@@ -346,8 +350,6 @@ class MainWindow(QMainWindow):
 
         self.current_path = Path(os.curdir).resolve()
         self.refresh_tree()
-        self.log.info(f"asdfg {__version__}")
-        self.log.info(f"CWD: {Path(os.curdir).resolve().as_posix()}")
 
 
     def add_plugin(self):
