@@ -13,6 +13,17 @@ from PySide6.QtWidgets import (QApplication, QMainWindow, QTreeWidget, QTreeWidg
 __version__ = "0.0.5"
 
 
+def semver_sort(items: list) -> list:
+    pattern = re.compile(r"""([^\-.0-9]+)?[\-.]?(\d+)?\.?(\d+)?\.?(\d+)?[\-.]?(.*)?""")
+
+    def key_func(x: str):
+        m = pattern.match(x)
+        return [m.group(1) or '', int(m.group(2) or '0'), int(m.group(3) or '0'), int(m.group(4) or '0'),
+                m.group(5) or '~']
+
+    return sorted(items, key=key_func)
+
+
 class LogWidget(QTextEdit):
     def __init__(self):
         super().__init__()
@@ -53,6 +64,11 @@ class LogWidget(QTextEdit):
         self.scroll_to_end()
 
 
+    def stderr(self, line: str):
+        self.append(f"<font color=yellow>STDERR: {line}</font>")
+        self.scroll_to_end()
+
+
 class ASDF:
     def __init__(self, log_widget: LogWidget, path: Path | None = None):
         self.log_widget = log_widget
@@ -85,7 +101,7 @@ class ASDF:
             stderr_lines = [p.decode() for p in process.stderr.splitlines()]
             if log_output:
                 if stderr_lines:
-                    [self.log_widget.error(line) for line in stderr_lines]
+                    [self.log_widget.stderr(line) for line in stderr_lines]
                 # else:
                 #    self.log_widget.info("(stderr empty)")
 
@@ -274,14 +290,7 @@ class AddVersionDialog(QDialog):
         self.setLayout(self.layout)
         all_versions = set(asdf.versions_list_all(plugin))
         all_installed_versions = set(asdf.versions_list_installed(plugin)[0])
-        pattern = re.compile(r"""([^\-.0-9]+)?[\-.]?(\d+)?\.?(\d+)?\.?(\d+)?[\-.]?(.*)?""")
-
-        def key_func(x: str):
-            m = pattern.match(x)
-            return [m.group(1) or '', int(m.group(2) or '0'), int(m.group(3) or '0'), int(m.group(4) or '0'),
-                    m.group(5) or '~']
-
-        not_installed_versions = sorted(list(all_versions - all_installed_versions), key=key_func)
+        not_installed_versions = semver_sort(list(all_versions - all_installed_versions))
         self.listbox.addItems(not_installed_versions)
         self.listbox.currentItemChanged.connect(self.current_item_changed)
 
@@ -377,6 +386,46 @@ class MainWindow(QMainWindow):
     def show_context_menu(self, position):
         item = self.tree.itemAt(position)
         menu = QMenu(self.tree)
+        #menu.setWindowFlag(Qt.FramelessWindowHint)
+        #menu.setAttribute(Qt.WA_TranslucentBackground)
+        # menu.setStyleSheet("""
+        #     QMenu{
+        #           border-radius: 5px;
+        #     }
+        #     QMenu::item {
+        #             background-color: transparent;
+        #             padding:3px 20px;
+        #             margin:5px 10px;
+        #     }
+        # """)
+        menu.setStyleSheet("""
+        QMenu{
+            background-color:palette(window);
+            border:1px solid palette(shadow);
+        }
+        
+        QMenu::item{
+            padding:3px 25px 3px 25px;
+            border:1px solid transparent;
+        }
+                
+        QMenu::item:selected{
+            border-color:rgba(147,191,236,127);
+            background:palette(highlight);
+        }
+        
+        QMenu::separator{
+            height:1px;
+            background:palette(alternate-base);
+            margin-left:5px;
+            margin-right:5px;
+        }
+        
+        QMenu::indicator{
+            width:18px;
+            height:18px;
+        }
+        """)
         if item.parent() is None:  # Top-level (ie, plugin)
             plugin = item.text(0)
             add_version_action = QAction(f"Add {plugin} version...")
@@ -433,7 +482,10 @@ class MainWindow(QMainWindow):
             where_version_action.triggered.connect(lambda: self.where_version(plugin, version))
             menu.addAction(where_version_action)
 
-        if menu.exec(self.tree.mapToGlobal(position)):
+        #if menu.exec(self.tree.mapToGlobal(position)):
+        if menu.exec(QCursor.pos()):
+        #if menu.popup(self.tree.mapToGlobal(position)):
+        #if menu.popup(self.mapToGlobal(position)):
             self.refresh_tree()
 
 
@@ -448,7 +500,7 @@ class MainWindow(QMainWindow):
             version, path = current_versions[plugin]
             item = QTreeWidgetItem([plugin, version, path])
             versions, current = self.asdf.versions_list_installed(plugin)
-            for ver in versions:
+            for ver in semver_sort(versions):
                 if 'No versions installed' not in ver:  # TODO: REVISIT!
                     child = QTreeWidgetItem([ver])
                     if ver == current:
@@ -461,6 +513,7 @@ class MainWindow(QMainWindow):
 
 def main() -> int:
     app = QApplication([])
+    app.setStyle('Material')
     font = QFont()
     font.setPointSize(12)
     app.setFont(font)
