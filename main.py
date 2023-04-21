@@ -14,7 +14,7 @@ from log import LogWidget
 from utils import semver_sort
 
 
-__version__ = "0.0.5"
+__version__ = "0.1.0"
 
 
 class MainWindow(QMainWindow):
