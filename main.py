@@ -14,7 +14,7 @@ from log import LogWidget
 from utils import semver_sort
 
 
-__version__ = "1.0.0"
+__version__ = "1.0.1"
 
 
 class MainWindow(QMainWindow):
@@ -22,6 +22,7 @@ class MainWindow(QMainWindow):
         super().__init__(*args, **kwargs)
         self.log = LogWidget()
         self.log.info(f"asdfg {__version__}")
+        self.log.info("(c) 2023 Don Welch <dwelch91@gmail.com>")
         self.log.info(f"CWD: {Path(os.curdir).resolve().as_posix()}")
         self.asdf = ASDF(self.log)
         self.latest_versions: dict[str, str] = {}
