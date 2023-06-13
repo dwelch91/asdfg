@@ -14,7 +14,7 @@ from log import LogWidget
 from utils import semver_sort
 
 
-__version__ = "1.0.1"
+__version__ = "1.1.0"
 
 
 class MainWindow(QMainWindow):
@@ -146,6 +146,12 @@ class MainWindow(QMainWindow):
         self.refresh_tree()
 
 
+    def add_latest_version_and_set_global(self, plugin):
+        latest_version = self.get_latest(plugin)
+        self.asdf.add_version(plugin, latest_version)
+        self.asdf.set_global_version(plugin, latest_version)
+
+
     def show_context_menu(self, position):
         item = self.tree.itemAt(position)
         menu = QMenu(self.tree)
@@ -191,6 +197,11 @@ class MainWindow(QMainWindow):
         """)
         if item.parent() is None:  # Top-level (ie, plugin)
             plugin = item.text(0)
+
+            add_latest_version_action = QAction(f"Update {plugin} to latest version and set as GLOBAL")
+            add_latest_version_action.triggered.connect(lambda: self.add_latest_version_and_set_global(plugin))
+            menu.addAction(add_latest_version_action)
+
             add_version_action = QAction(f"Add {plugin} version...")
             add_version_action.triggered.connect(lambda: self.add_version(plugin))
             menu.addAction(add_version_action)
