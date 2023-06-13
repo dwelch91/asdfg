@@ -148,6 +148,10 @@ class MainWindow(QMainWindow):
 
     def add_latest_version_and_set_global(self, plugin):
         latest_version = self.get_latest(plugin)
+        if latest_version is None:
+            self.log.error(f"Invalid version for plugin {plugin}.")
+            return []
+
         self.asdf.add_version(plugin, latest_version)
         self.asdf.set_global_version(plugin, latest_version)
 
@@ -273,7 +277,7 @@ class MainWindow(QMainWindow):
         plugins = sorted(current_versions.keys())
         for index, plugin in enumerate(plugins):
             current, path = current_versions[plugin]
-            latest = self.get_latest(plugin)
+            latest = self.get_latest(plugin) or "(unknown)"
             item = QTreeWidgetItem([plugin, current, latest, path])
             if current == latest:
                 item.setFont(1, bold_font)

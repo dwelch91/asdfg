@@ -67,6 +67,8 @@ class ASDF:
                 self.log_widget.ok(f"Command {' '.join(cmd)!r} completed successfully.")
 
             return stdout_lines + stderr_lines
+        except Exception as e:
+            self.log_widget.ok(f"Command {' '.join(cmd)!r} failed: {e}")
         finally:
             QApplication.restoreOverrideCursor()
 
@@ -114,6 +116,9 @@ class ASDF:
 
 
     def add_version(self, plugin: str, version: str) -> list[str]:
+        if version is None:
+            self.log_widget.error(f"Invalid version for plugin {plugin}.")
+            return []
         self.log_widget.warning(f"Installing {plugin} {version}. This may take a few moments...")
         output = self.asdf(['install', plugin, version], log_success=True)
         return output
