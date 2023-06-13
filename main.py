@@ -14,7 +14,7 @@ from log import LogWidget
 from utils import semver_sort
 
 
-__version__ = "0.1.0"
+__version__ = "1.0.0"
 
 
 class MainWindow(QMainWindow):
@@ -97,7 +97,12 @@ class MainWindow(QMainWindow):
     def add_plugin(self):
         dlg = AddPluginDialog(self.asdf)
         if dlg.exec():
-            self.asdf.add_plugin(dlg.plugin)
+            plugin = dlg.plugin
+            self.asdf.add_plugin(plugin)
+            if dlg.install_latest_checkbox:
+                latest_version = self.get_latest(plugin)
+                self.asdf.add_version(plugin, latest_version)
+                self.asdf.set_global_version(plugin, latest_version)
             self.clear_latest()
             self.refresh_tree()
 
@@ -105,7 +110,12 @@ class MainWindow(QMainWindow):
     def add_version(self, plugin: str):
         dlg = AddVersionDialog(self.asdf, plugin)
         if dlg.exec():
-            self.asdf.add_version(plugin, dlg.version)
+            version = dlg.version
+            self.asdf.add_version(plugin, version)
+            if dlg.set_global_version:
+                self.asdf.set_global_version(plugin, version)
+            if dlg.set_local_version:
+                self.asdf.set_local_version(plugin, version)
             self.refresh_tree()
 
 
@@ -188,13 +198,13 @@ class MainWindow(QMainWindow):
             set_local_system_action.triggered.connect(lambda: self.asdf.set_local_system(plugin))
             menu.addAction(set_local_system_action)
 
-            remove_local_version_action = QAction(f"Remove local {plugin} version, if set (use global version)")
+            remove_local_version_action = QAction(f"Remove local {plugin} version, if set (use GLOBAL version)")
             remove_local_version_action.triggered.connect(lambda: self.asdf.remove_local_version(plugin))
             menu.addAction(remove_local_version_action)
 
             menu.addSeparator()
 
-            set_global_system_action = QAction(f"Set global {plugin} version to system")
+            set_global_system_action = QAction(f"Set GLOBAL {plugin} version to system version")
             set_global_system_action.triggered.connect(lambda: self.asdf.set_global_system(plugin))
             menu.addAction(set_global_system_action)
 
@@ -212,7 +222,7 @@ class MainWindow(QMainWindow):
             parent = item.parent()
             plugin = parent.text(0)
             version = item.text(0)
-            set_global_version_action = QAction(f"Set global {plugin} version to {version}")
+            set_global_version_action = QAction(f"Set GLOBAL {plugin} version to {version}")
             set_global_version_action.triggered.connect(lambda: self.asdf.set_global_version(plugin, version))
             menu.addAction(set_global_version_action)
 

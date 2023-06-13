@@ -1,3 +1,5 @@
+rm -rf build
+rm -rf dist
 sudo apt-get -y install upx-ucl
 pip3 install pyinstaller
 pip3 install --upgrade PyInstaller pyinstaller-hooks-contrib

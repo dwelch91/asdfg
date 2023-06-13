@@ -1,6 +1,7 @@
 import os
 import re
 from pathlib import Path
+from shutil import which
 from subprocess import run
 
 from PySide6.QtGui import QCursor, Qt
@@ -12,15 +13,22 @@ from log import LogWidget
 class ASDF:
     def __init__(self, log_widget: LogWidget | None = None, path: Path | None = None):
         self.log_widget = log_widget
-        self.asdf_bin_path = path or Path('~/.asdf/bin/asdf').expanduser()
+        default_path = Path('~/.asdf/bin').expanduser()
+        default_bin = default_path / 'asdf'
+        self.env_path = ':'.join([default_path.as_posix(), os.environ['PATH']])
+        which_ = which('asdf', path=self.env_path)
+        which_bin = Path(which_) if which_ is not None else None
+        self.asdf_bin = path or which_bin or default_bin
+        if not self.asdf_bin.exists():
+            log_widget.error(f"`asdf` binary not found in {self.env_path!r}")
         self.current_path = Path(os.curdir).resolve()
         self.current_pattern = re.compile(r"""(\S+)\s+(\S+)\s+(.*)""")
 
 
     def asdf(self, params: list[str] | None = None, log_output: bool = True, log_success: bool = False) -> list[str]:
         QApplication.setOverrideCursor(QCursor(Qt.WaitCursor))
-        if not self.asdf_bin_path.exists():
-            msg = f"asdf binary not found at {self.asdf_bin_path}."
+        if not self.asdf_bin.exists():
+            msg = f"asdf binary not found at {self.asdf_bin}."
             if self.log_widget is not None:
                 self.log_widget.error(msg)
             print(msg)
@@ -28,13 +36,14 @@ class ASDF:
 
         try:
             params = params or []
-            cmd = [self.asdf_bin_path.as_posix()] + params
+            cmd = [self.asdf_bin.as_posix()] + params
 
             if log_output and self.log_widget is not None:
                 self.log_widget.cmd(' '.join(cmd))
 
-            path = ':'.join([os.environ['PATH'], Path('~/.asdf/bin').expanduser().as_posix()])
-            process = run(cmd, capture_output=True, cwd=self.current_path.as_posix(), env={**os.environ, 'PATH': path})
+            #path = ':'.join([os.environ['PATH'], Path('~/.asdf/bin').expanduser().as_posix()])
+            process = run(cmd, capture_output=True, cwd=self.current_path.as_posix(),
+                          env={**os.environ, 'PATH': self.env_path})
 
             stdout_lines = [p.decode() for p in process.stdout.splitlines()]
             if log_output:
